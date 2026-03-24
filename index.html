@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAN Graphic Store - Final V19</title>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <style>
+        :root { --accent: #0ff; --card-bg: rgba(255, 255, 255, 0.07); --gold: #f1c40f; --wa: #25D366; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.85)), url('https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=2070') no-repeat center center fixed; background-size: cover; color: #fff; overflow-x: hidden; }
+        .topbar { display: flex; justify-content: space-between; padding: 15px 30px; background: rgba(0,0,0,0.9); border-bottom: 2px solid var(--accent); align-items: center; }
+        .header { text-align: center; padding: 50px 20px; }
+        .header h1 { color: var(--accent); font-size: 3.5em; text-transform: uppercase; margin: 0; text-shadow: 0 0 20px rgba(0,255,255,0.6); }
+        nav { display: flex; justify-content: center; gap: 15px; background: rgba(10, 10, 10, 0.9); padding: 15px; position: sticky; top: 0; z-index: 100; backdrop-filter: blur(10px); }
+        nav button { background: none; border: 2px solid var(--accent); color: var(--accent); font-weight: bold; padding: 8px 20px; cursor: pointer; border-radius: 30px; transition: 0.3s; }
+        nav button:hover { background: var(--accent); color: #000; }
+        .tab-section { display: none; padding: 30px 20px; max-width: 1200px; margin: auto; }
+        .active { display: block; }
+        .home-tabs { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 40px; }
+        .img-tab { position: relative; height: 110px; border-radius: 15px; overflow: hidden; cursor: pointer; border: 2px solid rgba(0,255,255,0.1); }
+        .img-tab img { width: 100%; height: 100%; object-fit: cover; filter: brightness(0.4); }
+        .img-tab span { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-weight: bold; text-align: center; width: 100%; z-index: 2; }
+        .img-tab.active-sub { border-color: var(--accent); box-shadow: 0 0 15px var(--accent); }
+        .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+        .card { background: var(--card-bg); padding: 15px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.1); text-align: center; }
+        .card img, .card video { width: 100%; border-radius: 10px; height: 180px; object-fit: cover; margin-bottom: 10px; }
+        .price-tag { color: var(--gold); font-weight: bold; font-size: 1.2em; display: block; margin: 5px 0; white-space: pre-line; }
+        .card p { font-size: 0.9em; color: #ccc; white-space: pre-line; }
+        .buy-btn { background: var(--wa); color: white; border: none; padding: 12px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .owner-only { display: none; }
+        .admin-box { background: rgba(15, 15, 15, 0.95); padding: 25px; border: 2px solid var(--accent); border-radius: 15px; margin-top: 30px; }
+        input, textarea, select { width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; border: 1px solid #333; background: #111; color: #fff; box-sizing: border-box; }
+        .social-btn { padding: 10px 20px; text-decoration: none; color: white; border-radius: 25px; font-weight: bold; display: inline-block; margin: 5px; }
+        #orderModal { display: none; position: fixed; z-index: 10001; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); justify-content: center; align-items: center; }
+        .modal-content { background: #111; padding: 25px; border-radius: 15px; border: 2px solid var(--accent); width: 90%; max-width: 400px; text-align: center; }
+        .rev-card { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px; margin-bottom: 15px; border-left: 4px solid var(--accent); text-align: left; }
+        #imageOverlay { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); justify-content: center; align-items: center; }
+        #secretSpot { position: fixed; bottom: 0; right: 0; width: 30px; height: 30px; cursor: pointer; z-index: 9999; }
+    </style>
+</head>
+<body>
+
+<div id="orderModal">
+    <div class="modal-content">
+        <h3 id="modalTitle" style="color: var(--accent);"></h3>
+        <p id="modalPrice" style="color: var(--gold);"></p>
+        <textarea id="orderNote" rows="4" placeholder="ඔයාට අවශ්‍ය විස්තර මෙතන ලියන්න..."></textarea>
+        <button onclick="sendWhatsApp()" style="background: var(--wa); color: white; border: none; padding: 12px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer;">SEND ORDER</button>
+        <button onclick="closeModal()" style="background: none; color: #777; border: none; margin-top: 10px; cursor: pointer;">Cancel</button>
+    </div>
+</div>
+
+<div id="imageOverlay" onclick="this.style.display='none'"><img id="fullImage" src="" style="max-width:90%;"></div>
+<div id="secretSpot" onclick="login()"></div>
+
+<div class="topbar">
+    <div style="font-weight: bold; color: var(--accent); font-size: 1.2em;">SAN GRAPHICS PRO</div>
+    <div id="ownerIndicator" style="font-size: 0.7em; color: #333;">V19 FINAL FIX</div>
+</div>
+
+<div class="header">
+    <h1>SAN Graphic Store</h1>
+    <p>Professional Multimedia & Digital Solutions</p>
+</div>
+
+<nav>
+    <button onclick="toggleTab('home')">🏠 HOME</button>
+    <button onclick="toggleTab('reviews')">⭐ REVIEWS</button>
+    <button onclick="toggleTab('contact')">📩 CONTACT & PAY</button>
+</nav>
+
+<div id="home" class="tab-section active">
+    <div class="home-tabs">
+        <div class="img-tab active-sub" id="btn-video" onclick="toggleSubTab('video')"><img src="https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=400"><span>Video Editing</span></div>
+        <div class="img-tab" id="btn-graphic" onclick="toggleSubTab('graphic')"><img src="https://images.unsplash.com/photo-1626785774573-4b799315345d?w=400"><span>Graphic Designing</span></div>
+        <div class="img-tab" id="btn-ai" onclick="toggleSubTab('ai')"><img src="https://images.unsplash.com/photo-1677442136019-21780ecad995?w=400"><span>AI Web Development</span></div>
+        <div class="img-tab" id="btn-office" onclick="toggleSubTab('office')"><img src="https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=400"><span>Office Works</span></div>
+    </div>
+    <div id="video" class="sub-content"><div class="cards-grid" id="video-list"></div></div>
+    <div id="graphic" class="sub-content" style="display:none;"><div class="cards-grid" id="graphic-list"></div></div>
+    <div id="ai" class="sub-content" style="display:none;"><div class="cards-grid" id="ai-list"></div></div>
+    <div id="office" class="sub-content" style="display:none;"><div class="cards-grid" id="office-list"></div></div>
+
+    <div class="admin-box owner-only">
+        <h3 style="color: gold;">+ Add New Service</h3>
+        <input type="text" id="gigImg" placeholder="Image/Video URL">
+        <input type="text" id="gigTitle" placeholder="Service Name">
+        <textarea id="gigPrice" rows="2" placeholder="Price"></textarea>
+        <textarea id="gigDesc" rows="4" placeholder="Description"></textarea>
+        <select id="gigCategory">
+            <option value="video">Video Editing</option>
+            <option value="graphic">Graphic Designing</option>
+            <option value="ai">AI Web Development</option>
+            <option value="office">Office Works</option>
+        </select>
+        <button onclick="addNewGig()" style="background:var(--accent); color:black; font-weight:bold; width:100%; padding:12px; border:none; border-radius:5px;">ADD GIG</button>
+    </div>
+</div>
+
+<div id="reviews" class="tab-section">
+    <div class="admin-box">
+        <h3>Submit Feedback</h3>
+        <input type="text" id="revName" placeholder="Your Name">
+        <select id="revStars"><option value="⭐⭐⭐⭐⭐">5 Stars</option><option value="⭐⭐⭐⭐">4 Stars</option></select>
+        <textarea id="revMsg" rows="3" placeholder="Message"></textarea>
+        <button onclick="submitReview()" style="background:var(--accent); color:black; width:100%; padding:12px; border:none;">POST REVIEW</button>
+    </div>
+    <div id="review-list" style="margin-top: 20px;"></div>
+</div>
+
+<div id="contact" class="tab-section">
+    <div class="admin-box" style="text-align: center;">
+        <h2>Connect With Us</h2>
+        <div id="social-display"></div>
+        
+        <div class="owner-only" style="margin-top: 20px;">
+            <input type="text" id="setFB" placeholder="Facebook URL">
+            <input type="text" id="setYT" placeholder="YouTube URL">
+            <input type="text" id="setTG" placeholder="Telegram URL">
+            <button onclick="saveSettings()" style="background:var(--accent); color:black; padding:10px; border:none; border-radius:5px;">Update Social Links</button>
+        </div>
+
+        <hr style="border:0.5px solid #333; margin:30px 0;">
+        <h2 style="color: var(--gold);">Bank Details</h2>
+        <div id="bank-display" style="border: 2px dashed var(--gold); padding: 25px; border-radius: 15px; background: rgba(0,0,0,0.5); white-space: pre-line; display: inline-block; text-align: left; min-width: 280px; margin-bottom: 20px;"></div>
+        
+        <div class="owner-only">
+            <textarea id="setBank" rows="6" placeholder="Enter Bank Details Here..."></textarea>
+            <button onclick="saveSettings()" style="background:gold; color:black; font-weight:bold; width:100%; padding:12px; border:none; border-radius:5px;">SAVE BANK DETAILS</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDtxtI0W6R4eZCdPJrzvEosBEGl8EGC60c",
+      authDomain: "san-graphic-store.firebaseapp.com",
+      databaseURL: "https://san-graphic-store-default-rtdb.firebaseio.com",
+      projectId: "san-graphic-store",
+      storageBucket: "san-graphic-store.firebasestorage.app",
+      messagingSenderId: "424910899617",
+      appId: "1:424910899617:web:00d369f925bb3b906fa3e0"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    let isOwner = false;
+    let tempOrderData = {};
+    const MY_NUMBER = "94714980024";
+
+    function toggleTab(id) {
+        document.querySelectorAll('.tab-section').forEach(t => t.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+    }
+
+    function toggleSubTab(id) {
+        document.querySelectorAll('.sub-content').forEach(c => c.style.display = 'none');
+        document.querySelectorAll('.img-tab').forEach(b => b.classList.remove('active-sub'));
+        document.getElementById(id).style.display = 'block';
+        document.getElementById('btn-' + id).classList.add('active-sub');
+    }
+
+    function loadData() {
+        ['video', 'graphic', 'ai', 'office'].forEach(cat => {
+            db.ref('gigs/' + cat).on('value', snap => {
+                const list = document.getElementById(cat + '-list');
+                list.innerHTML = '';
+                snap.forEach(child => {
+                    const d = child.val();
+                    const key = child.key;
+                    const media = d.url.match(/\.(mp4|webm)$/) ? `<video src="${d.url}" controls></video>` : `<img src="${d.url}" onclick="showImage('${d.url}')">`;
+                    list.innerHTML += `
+                        <div class="card">
+                            ${media}
+                            <div id="view-${key}">
+                                <h3>${d.title}</h3>
+                                <span class="price-tag">${d.price}</span>
+                                <p>${d.desc}</p>
+                            </div>
+                            <button class="buy-btn" onclick="openOrderModal('${d.title}', '${d.price.replace(/\n/g, ' ')}')">🛒 BUY NOW</button>
+                            <div class="owner-only" style="display:${isOwner?'block':'none'}; margin-top:10px;">
+                                <button onclick="editGig('${cat}','${key}')" id="eb-${key}" style="background:#3498db; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;">Edit</button>
+                                <button onclick="deleteGig('${cat}','${key}')" style="background:red; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;">Delete</button>
+                            </div>
+                        </div>`;
+                });
+            });
+        });
+    }
+
+    function editGig(cat, key) {
+        const titleEl = document.querySelector(`#view-${key} h3`);
+        const priceEl = document.querySelector(`#view-${key} .price-tag`);
+        const descEl = document.querySelector(`#view-${key} p`);
+        const btn = document.getElementById(`eb-${key}`);
+
+        if (btn.innerText === "Edit") {
+            titleEl.innerHTML = `<input type="text" id="edit-t-${key}" value="${titleEl.innerText}">`;
+            priceEl.innerHTML = `<textarea id="edit-p-${key}" rows="2">${priceEl.innerText}</textarea>`;
+            descEl.innerHTML = `<textarea id="edit-d-${key}" rows="4">${descEl.innerText}</textarea>`;
+            btn.innerText = "SAVE";
+            btn.style.background = "#2ecc71";
+        } else {
+            const upData = {
+                title: document.getElementById(`edit-t-${key}`).value,
+                price: document.getElementById(`edit-p-${key}`).value,
+                desc: document.getElementById(`edit-d-${key}`).value
+            };
+            db.ref(`gigs/${cat}/${key}`).update(upData).then(() => { alert("Updated!"); loadData(); });
+        }
+    }
+
+    function saveSettings() {
+        const s = {
+            fb: document.getElementById('setFB').value,
+            yt: document.getElementById('setYT').value,
+            tg: document.getElementById('setTG').value,
+            bank: document.getElementById('setBank').value
+        };
+        db.ref('siteSettings').set(s).then(() => alert("All Settings Saved!"));
+    }
+
+    function loadSettings() {
+        db.ref('siteSettings').on('value', snap => {
+            const s = snap.val(); if(!s) return;
+            document.getElementById('setFB').value = s.fb || '';
+            document.getElementById('setYT').value = s.yt || '';
+            document.getElementById('setTG').value = s.tg || '';
+            document.getElementById('setBank').value = s.bank || '';
+            document.getElementById('social-display').innerHTML = `
+                <a href="${s.fb}" target="_blank" class="social-btn" style="background:#1877F2;">Facebook</a>
+                <a href="${s.yt}" target="_blank" class="social-btn" style="background:#FF0000;">YouTube</a>
+                <a href="${s.tg}" target="_blank" class="social-blank" style="background:#0088cc; padding: 10px 20px; text-decoration: none; color: white; border-radius: 25px; font-weight: bold; display: inline-block;">Telegram</a>
+                <a href="https://wa.me/${MY_NUMBER}" target="_blank" class="social-btn" style="background:#25D366;">WhatsApp</a>`;
+            document.getElementById('bank-display').innerText = s.bank || 'Bank details not set yet.';
+        });
+    }
+
+    function openOrderModal(title, price) {
+        tempOrderData = { title, price };
+        document.getElementById('modalTitle').innerText = title;
+        document.getElementById('modalPrice').innerText = price;
+        document.getElementById('orderModal').style.display = 'flex';
+    }
+    function closeModal() { document.getElementById('orderModal').style.display = 'none'; }
+    function sendWhatsApp() {
+        const note = document.getElementById('orderNote').value || "No note.";
+        const msg = `Order: ${tempOrderData.title}\nPrice: ${tempOrderData.price}\nNote: ${note}`;
+        window.open(`https://wa.me/${MY_NUMBER}?text=${encodeURIComponent(msg)}`, '_blank');
+        closeModal();
+    }
+    function login() {
+        if(prompt("Admin Key:") === "Sahas 200834300066/0852") {
+            isOwner = true;
+            document.querySelectorAll('.owner-only').forEach(el => el.style.display = 'block');
+            document.getElementById('ownerIndicator').innerText = "ADMIN ACTIVE";
+            loadData(); loadReviews(); loadSettings();
+        }
+    }
+    function submitReview() {
+        const name = document.getElementById('revName').value;
+        const stars = document.getElementById('revStars').value;
+        const msg = document.getElementById('revMsg').value;
+        if(name && msg) db.ref('reviews').push({name, stars, msg}).then(() => alert("Review Posted!"));
+    }
+    function loadReviews() {
+        db.ref('reviews').on('value', snap => {
+            const list = document.getElementById('review-list'); list.innerHTML = '';
+            snap.forEach(child => {
+                const r = child.val();
+                list.innerHTML += `<div class="rev-card"><b style="color:#0ff">${r.name}</b><br><small style="color:gold">${r.stars}</small><p>${r.msg}</p>${isOwner?`<button onclick="db.ref('reviews/${child.key}').remove()" style="color:red; background:none; border:none; cursor:pointer;">Delete</button>`:''}</div>`;
+            });
+        });
+    }
+    function addNewGig() {
+        const cat = document.getElementById('gigCategory').value;
+        const data = { url: document.getElementById('gigImg').value, title: document.getElementById('gigTitle').value, price: document.getElementById('gigPrice').value, desc: document.getElementById('gigDesc').value };
+        db.ref('gigs/' + cat).push(data).then(() => alert("Added!"));
+    }
+    function deleteGig(cat, key) { if(confirm("Delete?")) db.ref(`gigs/${cat}/${key}`).remove(); }
+    function showImage(src) { document.getElementById('fullImage').src = src; document.getElementById('imageOverlay').style.display = 'flex'; }
+    window.onload = () => { loadData(); loadSettings(); loadReviews(); };
+    window.addEventListener('keydown', (e) => { if(e.key.toLowerCase() === 'l') login(); });
+</script>
+</body>
+</html>
